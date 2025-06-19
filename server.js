@@ -7,7 +7,6 @@ const bodyParser = require("body-parser");
 const sqlite3 = require("sqlite3").verbose();
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const fetch = require("node-fetch"); // для отправки HTTP-запросов к FCM
 
 const JWT_SECRET     = process.env.JWT_SECRET     || "jdjHGYYve6743c3y";
 const FCM_SERVER_KEY = process.env.FCM_SERVER_KEY || "<ВАШ_SERVER_KEY_ИЗ_FIREBASE>";
