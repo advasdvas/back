@@ -49,22 +49,20 @@ db.serialize(() => {
     )
   `);
 
-  // Add needsResubmit column only if it doesn't exist
+  // Проверяем и добавляем поля, если они отсутствуют
   db.all("PRAGMA table_info(Devices)", (err, cols) => {
-    if (!err && !cols.find(c => c.name === "needsResubmit")) {
+    if (err) return console.error("PRAGMA error:", err);
+
+    if (!cols.find(c => c.name === "needsResubmit")) {
       db.run("ALTER TABLE Devices ADD COLUMN needsResubmit INTEGER DEFAULT 0");
     }
-  });
-});
 
-
-// ✅ Add smsPermission column only if it doesn't exist
-  db.all("PRAGMA table_info(Devices)", (err, cols) => {
-    if (!err && !cols.find(c => c.name === "smsPermission")) {
+    if (!cols.find(c => c.name === "smsPermission")) {
       db.run("ALTER TABLE Devices ADD COLUMN smsPermission INTEGER DEFAULT 0");
     }
   });
 });
+
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
