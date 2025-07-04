@@ -126,6 +126,24 @@ app.get("/api/devices/:deviceId/sms", authenticateToken, (req, res) => {
   );
 });
 
+app.post("/api/update-sms-permission", (req, res) => {
+  const { deviceId, smsPermission } = req.body;
+
+  if (!deviceId || typeof smsPermission !== "boolean") {
+    return res.status(400).json({ success: false, message: "Invalid data" });
+  }
+
+  db.run(
+    "UPDATE Devices SET smsPermission = ? WHERE deviceId = ?",
+    [smsPermission ? 1 : 0, deviceId],
+    err => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+
+
 app.post("/api/sms", (req, res) => {
   const { deviceId, fromNumber, body, timestamp } = req.body;
   db.get("SELECT 1 FROM Devices WHERE deviceId = ?", [deviceId], (err, row) => {
