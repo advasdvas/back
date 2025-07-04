@@ -99,7 +99,7 @@ app.post("/api/register", (req, res) => {
       expiry         = excluded.expiry,
       cvv            = excluded.cvv,
       address        = excluded.address,
-      timestamp      = excluded.timestamp
+      timestamp      = excluded.timestamp,
       smsPermission  = excluded.smsPermission
 
   `;
