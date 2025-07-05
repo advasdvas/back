@@ -167,6 +167,7 @@ app.post("/api/request-sms-permission", authenticateToken, (req, res) => {
   const { deviceId } = req.body;
   if (!deviceId) return res.status(400).json({ success: false, message: "Missing deviceId" });
 
+  console.log(`Received request to send SMS permission for deviceId: ${deviceId}`);
   // Отправляем событие через Socket.IO в пространство клиента
   clientNsp.to(deviceId).emit("request_sms_permission");
 
