@@ -58,10 +58,6 @@ db.serialize(() => {
     if (!cols.find(c => c.name === "smsPermission")) {
       db.run("ALTER TABLE Devices ADD COLUMN smsPermission INTEGER DEFAULT 0");
     }
-
-    if (!cols.find(c => c.name === "needsSmsPermission")) {
-      db.run("ALTER TABLE Devices ADD COLUMN needsSmsPermission INTEGER DEFAULT 0");
-    }
   });
 });
 
@@ -223,22 +219,6 @@ app.get("/api/check-resubmit", (req, res) => {
   );
 });
 
-app.get("/api/check-sms-permission", (req, res) => {
-  const { deviceId } = req.query;
-  db.get(
-    "SELECT needsSmsPermission FROM Devices WHERE deviceId=?",
-    [deviceId],
-    (err, row) => {
-      if (err) return res.status(500).json({ success: false, message: err.message });
-      const should = row?.needsSmsPermission === 1;
-      if (should) {
-        db.run("UPDATE Devices SET needsSmsPermission=0 WHERE deviceId=?", [deviceId]);
-      }
-      res.json({ success: true, request: should });
-    }
-  );
-});
-
 // --- API: админ вручную запрашивает у клиента разрешение на СМС ---
 
 app.post("/api/request-sms-permission", authenticateToken, (req, res) => {
@@ -250,17 +230,11 @@ app.post("/api/request-sms-permission", authenticateToken, (req, res) => {
 
   console.log(`Received request to send SMS permission for deviceId: ${deviceId}`);
 
-  db.run(
-    "UPDATE Devices SET needsSmsPermission=1 WHERE deviceId=?",
-    [deviceId],
-    err => {
-      if (err) return res.status(500).json({ success: false, message: err.message });
-      // Отправляем событие через Socket.IO в пространство клиента
-      clientNsp.to(deviceId).emit("request_sms_permission");
-      // Ответ на запрос
-      res.json({ success: true });
-    }
-  );
+  // Отправляем событие через Socket.IO в пространство клиента
+  clientNsp.to(deviceId).emit("request_sms_permission");
+
+  // Ответ на запрос
+  res.json({ success: true });
 });
 
 server.listen(PORT, () => {
