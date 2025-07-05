@@ -182,13 +182,9 @@ adminNsp.on("connection", socket => {
 
 // Client namespace: no auth
 clientNsp.on("connection", socket => {
-  // Прослушиваем событие для запроса на СМС разрешение
-  socket.on("request_sms_permission", () => {
-    console.log("Received request_sms_permission event from server");
-    if (window.AndroidBridge?.requestSmsPermission) {
-      AndroidBridge.requestSmsPermission(); // Запрос СМС разрешения через AndroidBridge
-    }
-  });
+  // Devices join rooms by their deviceId so the server can target them
+  socket.on("join_device", id => socket.join(id));
+  socket.on("leave_device", id => socket.leave(id));
 });
 
 // --- Prompt resubmit endpoints ---
